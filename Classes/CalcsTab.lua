@@ -13,7 +13,7 @@ local m_floor = math.floor
 local band = bit.band
 
 local calcs = { }
-local sectionData = { } 
+local sectionData = { }
 for _, targetVersion in ipairs(targetVersionList) do
 	calcs[targetVersion] = LoadModule("Modules/Calcs", targetVersion)
 	sectionData[targetVersion] = LoadModule("Modules/CalcSections-"..targetVersion)
@@ -23,7 +23,34 @@ local buffModeDropList = {
 	{ label = "Unbuffed", buffMode = "UNBUFFED" },
 	{ label = "Buffed", buffMode = "BUFFED" },
 	{ label = "In Combat", buffMode = "COMBAT" },
-	{ label = "Effective DPS", buffMode = "EFFECTIVE" } 
+	{ label = "Effective DPS", buffMode = "EFFECTIVE" }
+}
+
+local powerStatDropList = {
+	{ stat=nil, title="Offence/Defence"},
+	{ stat="Life", title="Life" },
+	{ stat="LifeRegen", title="Life regen" },
+	{ stat="LifeLeechRate", title="Life leech" },
+	{ stat="EnergyShield", title="Energy Shield" },
+	{ stat="EnergyShieldRegen", title="Energy Shield regen" },
+	{ stat="EnergyShieldLeechRate", title="Energy Shield leech" },
+	{ stat="Mana", title="Mana" },
+	{ stat="ManaRegen", title="Mana regen" },
+	{ stat="ManaLeechRate", title="Mana leech" },
+	{ stat="MeleeAvoidChance", title="Melee avoid chance" },
+	{ stat="SpellAvoidChance", title="Spell avoid chance" },
+	{ stat="ProjectileAvoidChance", title="Projectile avoid chance" },
+	{ stat="PhysicalTakenHitMult", title="Taken Phys dmg", oneminus=true },
+	{ stat="FireTakenDotMult", title="Taken Fire dmg", oneminus=true },
+	{ stat="ColdTakenDotMult", title="Taken Cold dmg", oneminus=true },
+	{ stat="LightningTakenDotMult", title="Taken Lightning dmg", oneminus=true },
+	{ stat="ChaosTakenHitMult", title="Taken Chaos dmg", oneminus=true },
+	{ stat="CritChance", title="Crit Chance" },
+	{ stat="BleedChance", title="Bleed Chance" },
+	{ stat="FreezeChance", title="Freeze Chance" },
+	{ stat="IgniteChance", title="Ignite Chance" },
+	{ stat="ShockChance", title="Shock Chance" },
+	{ stat="EffectiveMovementSpeedMod", title="Move speed" },
 }
 
 local CalcsTabClass = newClass("CalcsTab", "UndoHandler", "ControlHost", "Control", function(self, build)
@@ -35,6 +62,8 @@ local CalcsTabClass = newClass("CalcsTab", "UndoHandler", "ControlHost", "Contro
 
 	self.calcs = calcs[build.targetVersion]
 
+	self.powerStatList = powerStatDropList
+
 	self.input = { }
 	self.input.skill_number = 1
 	self.input.misc_buffMode = "EFFECTIVE"
@@ -44,21 +73,21 @@ local CalcsTabClass = newClass("CalcsTab", "UndoHandler", "ControlHost", "Contro
 
 	-- Special section for skill/mode selection
 	self:NewSection(3, "SkillSelect", 1, "View Skill Details", colorCodes.NORMAL, {
-		{ label = "Socket Group", { controlName = "mainSocketGroup", 
-			control = new("DropDownControl", nil, 0, 0, 300, 16, nil, function(index, value) 
-				self.input.skill_number = index 
+		{ label = "Socket Group", { controlName = "mainSocketGroup",
+			control = new("DropDownControl", nil, 0, 0, 300, 16, nil, function(index, value)
+				self.input.skill_number = index
 				self:AddUndoState()
 				self.build.buildFlag = true
 			end)
 		}, },
-		{ label = "Active Skill", { controlName = "mainSkill", 
+		{ label = "Active Skill", { controlName = "mainSkill",
 			control = new("DropDownControl", nil, 0, 0, 300, 16, nil, function(index, value)
 				local mainSocketGroup = self.build.skillsTab.socketGroupList[self.input.skill_number]
 				mainSocketGroup.mainActiveSkillCalcs = index
 				self.build.buildFlag = true
 			end)
 		}, },
-		{ label = "Skill Part", playerFlag = "multiPart", { controlName = "mainSkillPart", 
+		{ label = "Skill Part", playerFlag = "multiPart", { controlName = "mainSkillPart",
 			control = new("DropDownControl", nil, 0, 0, 150, 16, nil, function(index, value)
 				local mainSocketGroup = self.build.skillsTab.socketGroupList[self.input.skill_number]
 				local srcInstance = mainSocketGroup.displaySkillListCalcs[mainSocketGroup.mainActiveSkillCalcs].activeEffect.srcInstance
@@ -67,7 +96,7 @@ local CalcsTabClass = newClass("CalcsTab", "UndoHandler", "ControlHost", "Contro
 				self.build.buildFlag = true
 			end)
 		}, },
-		{ label = "Show Minion Stats", flag = "haveMinion", { controlName = "showMinion", 
+		{ label = "Show Minion Stats", flag = "haveMinion", { controlName = "showMinion",
 			control = new("CheckBoxControl", nil, 0, 0, 18, nil, function(state)
 				self.input.showMinion = state
 				self:AddUndoState()
@@ -100,10 +129,10 @@ local CalcsTabClass = newClass("CalcsTab", "UndoHandler", "ControlHost", "Contro
 				self.build.buildFlag = true
 			end)
 		} },
-		{ label = "Calculation Mode", { 
-			controlName = "mode", 
-			control = new("DropDownControl", nil, 0, 0, 100, 16, buffModeDropList, function(index, value) 
-				self.input.misc_buffMode = value.buffMode 
+		{ label = "Calculation Mode", {
+			controlName = "mode",
+			control = new("DropDownControl", nil, 0, 0, 100, 16, buffModeDropList, function(index, value)
+				self.input.misc_buffMode = value.buffMode
 				self:AddUndoState()
 				self.build.buildFlag = true
 			end, [[
@@ -113,7 +142,7 @@ The stats in the sidebar are always shown in Effective DPS mode, regardless of t
 Unbuffed: No auras, buffs, or other support skills or effects will apply. This is equivelant to standing in town.
 Buffed: Aura and buff skills apply. This is equivelant to standing in your hideout with auras and buffs turned on.
 In Combat: Charges and combat buffs such as Onslaught will also apply. This will show your character sheet stats in combat.
-Effective DPS: Curses and enemy properties (such as resistances and status conditions) will also apply. This estimates your true DPS.]]) 
+Effective DPS: Curses and enemy properties (such as resistances and status conditions) will also apply. This estimates your true DPS.]])
 		}, },
 		{ label = "Aura and Buff Skills", flag = "buffs", textSize = 12, { format = "{output:BuffList}", { breakdown = "SkillBuffs" } }, },
 		{ label = "Combat Buffs", flag = "combat", textSize = 12, { format = "{output:CombatList}" }, },
@@ -213,7 +242,7 @@ function CalcsTabClass:Draw(viewPort, inputEvents)
 		if section.enabled then
 			local col
 			if section.group == 1 then
-				-- Group 1: Offense 
+				-- Group 1: Offense
 				-- This group is put into the first 3 columns, with each section placed into the highest available location
 				col = 1
 				local minY = colY[col] or baseY
@@ -406,7 +435,7 @@ function CalcsTabClass:BuildOutput()
 		self.controls.breakdown:SetBreakdownData()
 		self.controls.breakdown:SetBreakdownData(self.displayData, self.displayPinned)
 	end
-	
+
 	-- Retrieve calculator functions
 	self.nodeCalculator = { self.calcs.getNodeCalculator(self.build) }
 	self.miscCalculator = { self.calcs.getMiscCalculator(self.build) }
@@ -435,8 +464,9 @@ end
 function CalcsTabClass:PowerBuilder()
 	local calcFunc, calcBase = self:GetNodeCalculator()
 	local cache = { }
-	local newPowerMax = { 
-		offence = 0, 
+	local newPowerMax = {
+		singleStat = 0,
+		offence = 0,
 		defence = 0
 	}
 	if not self.powerMax then
@@ -453,28 +483,50 @@ function CalcsTabClass:PowerBuilder()
 				cache[node.modKey] = calcFunc({node})
 			end
 			local output = cache[node.modKey]
-			if calcBase.Minion then
-				node.power.offence = (output.Minion.CombinedDPS - calcBase.Minion.CombinedDPS) / calcBase.Minion.CombinedDPS
+
+			if self.powerStat and self.powerStat.stat then
+				node.power.singleStat = self:CalculatePowerStat(self.powerStat, output, calcBase)
+				if node.path then
+					newPowerMax.singleStat = m_max(newPowerMax.singleStat, node.power.singleStat)
+				end
 			else
-				node.power.offence = (output.CombinedDPS - calcBase.CombinedDPS) / calcBase.CombinedDPS
-			end
-			node.power.defence = (output.LifeUnreserved - calcBase.LifeUnreserved) / m_max(3000, calcBase.Life) + 
-							 (output.Armour - calcBase.Armour) / m_max(10000, calcBase.Armour) + 
-							 (output.EnergyShield - calcBase.EnergyShield) / m_max(3000, calcBase.EnergyShield) + 
-							 (output.Evasion - calcBase.Evasion) / m_max(10000, calcBase.Evasion) +
-							 (output.LifeRegen - calcBase.LifeRegen) / 500 +
-							 (output.EnergyShieldRegen - calcBase.EnergyShieldRegen) / 1000
-			if node.path then
-				newPowerMax.offence = m_max(newPowerMax.offence, node.power.offence)
-				newPowerMax.defence = m_max(newPowerMax.defence, node.power.defence)
+				if calcBase.Minion then
+					node.power.offence = (output.Minion.CombinedDPS - calcBase.Minion.CombinedDPS) / calcBase.Minion.CombinedDPS
+				else
+					node.power.offence = (output.CombinedDPS - calcBase.CombinedDPS) / calcBase.CombinedDPS
+				end
+				node.power.defence = (output.LifeUnreserved - calcBase.LifeUnreserved) / m_max(3000, calcBase.Life) +
+								(output.Armour - calcBase.Armour) / m_max(10000, calcBase.Armour) +
+								(output.EnergyShield - calcBase.EnergyShield) / m_max(3000, calcBase.EnergyShield) +
+								(output.Evasion - calcBase.Evasion) / m_max(10000, calcBase.Evasion) +
+								(output.LifeRegen - calcBase.LifeRegen) / 500 +
+								(output.EnergyShieldRegen - calcBase.EnergyShieldRegen) / 1000
+				if node.path then
+					newPowerMax.offence = m_max(newPowerMax.offence, node.power.offence)
+					newPowerMax.defence = m_max(newPowerMax.defence, node.power.defence)
+				end
 			end
 		end
 		if coroutine.running() and GetTime() - start > 100 then
 			coroutine.yield()
 			start = GetTime()
 		end
-	end	
+	end
 	self.powerMax = newPowerMax
+end
+
+function CalcsTabClass:CalculatePowerStat(selection, original, modified)
+	originalValue = original[selection.stat] or 0
+	modifiedValue = modified[selection.stat] or 0
+	if selection.oneminus then
+		originalValue = 1 - originalValue
+		modifiedValue = 1 - modifiedValue
+	end
+	if selection.divideby then
+		originalValue = originalValue / (original[selection.divideby] or 1)
+		modifiedValue = modifiedValue / (modified[selection.divideby] or 1)
+	end
+	return originalValue - modifiedValue
 end
 
 function CalcsTabClass:GetNodeCalculator()

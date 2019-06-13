@@ -81,8 +81,11 @@ local TreeTabClass = newClass("TreeTab", "ControlHost", function(self, build)
 	self.controls.treeSearch = new("EditControl", {"LEFT",self.controls.export,"RIGHT"}, 8, 0, 300, 20, "", "Search", "%c%(%)", 100, function(buf)
 		self.viewer.searchStr = buf
 	end)
-	self.controls.treeHeatMap = new("CheckBoxControl", {"LEFT",self.controls.treeSearch,"RIGHT"}, 130, 0, 20, "Show Node Power:", function(state)	
+	self.controls.treeHeatMap = new("CheckBoxControl", {"LEFT",self.controls.treeSearch,"RIGHT"}, 130, 0, 20, "Show Node Power:", function(state)
 		self.viewer.showHeatMap = state
+	end)
+	self.controls.treeHeatMapStatSelect = new("DropDownControl", {"LEFT",self.controls.treeHeatMap,"RIGHT"}, 8, 0, 150, 20, nil, function(index, value)
+		self:SetPowerCalc(self.build.calcsTab.powerStatList[index])
 	end)
 	self.controls.treeHeatMap.tooltipText = function()
 		local offCol, defCol = main.nodePowerTheme:match("(%a+)/(%a+)")
@@ -134,10 +137,21 @@ function TreeTabClass:Draw(viewPort, inputEvents)
 		t_insert(self.controls.specSelect.list, (spec.treeVersion ~= self.build.targetVersionData.latestTreeVersion and ("["..treeVersions[spec.treeVersion].short.."] ") or "")..(spec.title or "Default"))
 	end
 	t_insert(self.controls.specSelect.list, "Manage trees...")
+
 	if not self.controls.treeSearch.hasFocus then
 		self.controls.treeSearch:SetText(self.viewer.searchStr)
 	end
+
 	self.controls.treeHeatMap.state = self.viewer.showHeatMap
+
+	self.controls.treeHeatMapStatSelect.selIndex = 1
+	wipeTable(self.controls.treeHeatMapStatSelect.list)
+	for id, stat in ipairs(self.build.calcsTab.powerStatList) do
+		t_insert(self.controls.treeHeatMapStatSelect.list, stat.title or stat.stat)
+		if self.build.calcsTab.powerStat and self.build.calcsTab.powerStat.stat == stat.stat then
+			self.controls.treeHeatMapStatSelect.selIndex = id
+		end
+	end
 
 	SetDrawLayer(1)
 
@@ -188,7 +202,7 @@ function TreeTabClass:PostLoad()
 end
 
 function TreeTabClass:Save(xml)
-	xml.attrib = { 
+	xml.attrib = {
 		activeSpec = tostring(self.activeSpec)
 	}
 	for specId, spec in ipairs(self.specList) do
@@ -232,6 +246,15 @@ function TreeTabClass:SetActiveSpec(specId)
 		-- Update item slots if items have been loaded already
 		self.build.itemsTab:PopulateSlots()
 	end
+end
+
+function TreeTabClass:SetPowerCalc(selection)
+	self.viewer.showHeatMap = true
+	self.build.buildFlag = true
+	self.build.powerBuildFlag = true
+	self.build.calcsTab.powerStat = selection
+	-- self.viewer.heatMapStat = self.build.calcsTab.powerStat
+	self.build.calcsTab:BuildPower()
 end
 
 function TreeTabClass:OpenSpecManagePopup()
